@@ -112,7 +112,7 @@ Add repository to team.<br>
 <FormalSpec>Org:%String,TeamId:%Integer,Repo:%String,Permission:%String(VALUELIST=",pull,push,admin")="pull"</FormalSpec>
 <ReturnType>%Status</ReturnType>
 <Implementation><![CDATA[
-	Set ..Request.Location = "teams/" _ Team _ "/repos/" _ Org _ "/" _ Repo 
+	Set ..Request.Location = "teams/" _ TeamId _ "/repos/" _ Org _ "/" _ Repo 
 	Do ..Request.SetHeader("Accept","application/vnd.github.ironman-preview+json") 
 	//Do ..Request.SetHeader("Content-Length",0) 
 	Do ..Request.SetParam("permission",Permission) 		
