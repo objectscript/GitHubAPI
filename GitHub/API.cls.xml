@@ -17,6 +17,12 @@ GitHub API server address</Description>
 <Default>api.github.com</Default>
 </Parameter>
 
+<Parameter name="Accept">
+<Description>
+Default accept header for our requests</Description>
+<Default>application/vnd.github.v3+json</Default>
+</Parameter>
+
 <Property name="Request">
 <Type>%Net.HttpRequest</Type>
 <Internal>1</Internal>
@@ -52,7 +58,7 @@ Unauthenticated requests are associated with an IP address.<br>]]></Description>
  	Set ..Request.Https = 1
 	Set ..Request.SSLConfiguration = SSLConfig
 	Set ..Request.Server=	..#Server					
-	Do ..Request.SetHeader("Accept","application/vnd.github.v3+json") 		// we want 3rd version of api	
+	Do ..Request.SetHeader("Accept",..#Accept) 		// we want 3rd version of api	
 	
 	If ($d(Username) && $d(Password) && (Username'="") && (Password'="")) {	// supply Username and Passwor, if both are provided. GitHub accept Basic Auth
 		Set ..Request.Username = Username									// https://developer.github.com/v3/auth/
@@ -161,8 +167,24 @@ Add repository to team.<br>
 </Method>
 
 <Method name="ProtectBranch">
-<FormalSpec>Owner:%String,Repo:%String,Branch:%String</FormalSpec>
+<Description><![CDATA[
+Protect branch<br>
+<var>Owner</var> - owner of repository<br>
+<var>Repo</var> - repository name (eg. Cache-MDX2JSON)<br>
+<var>Branch</var> - branch to protect<br>
+<a href="https://help.github.com/articles/about-protected-branches/">About</a> protected branches]]></Description>
+<FormalSpec>Owner:%String,Repo:%String,Branch:%String="master"</FormalSpec>
 <ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	Set ..Request.Location = "repos/" _ Owner _ "/" _ Repo _ "/branches/" _ Branch 
+	Do ..Request.RemoveHeader("Accept")
+	Do ..Request.SetHeader("Accept"," application/vnd.github.loki-preview+json") // custom header as this functionality is currently in beta
+	Do ..Request.EntityBody.Write("{""protection"": {""enabled"": true}") // to supply true value in pre 16.1 versions
+	Set st = ..Request.Send("PATCH","",2)
+	Do ..Request.RemoveHeader("Accept")
+	Do ..Request.SetHeader("Accept",..#Accept) // back to main header
+	Return st
+]]></Implementation>
 </Method>
 </Class>
 </Export>
