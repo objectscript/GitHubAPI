@@ -147,6 +147,45 @@ Get list of all repositories in a organization. Use GetOrgReposNames method if y
 ]]></Implementation>
 </Method>
 
+<Method name="GetTeamReposNames">
+<Description><![CDATA[
+Get list of names of all repositories in a organization.<br>
+<var>TeamId</var> - Id (not Name) of a team<br>
+<var>Type</var> - select one type of repos to return (all - for eveything)<br>
+<var>Repos</var> - list of repositories' names<br>
+<var>Page</var> - internal, do not set]]></Description>
+<FormalSpec><![CDATA[TeamId:%String,Type:%String(VALUELIST=",all,public,private,forks,sources,member")="all",&Repos:%ListOfDataTypes,Page:%Integer=1]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	Set:(('$Data(Repos)) || ('$IsObject(Repos))) Repos = ##class(%ListOfDataTypes).%New()
+	#dim obj As List of %ZEN.proxyObject
+
+	Set ..Request.Location = "teams/" _ TeamId _ "/repos" 
+	Do ..Request.SetParam("page",Page) 
+	Do ..Request.SetParam("type",Type) 
+	Set st = ..Request.Get()
+
+	Set st1 = ##class(%ZEN.Auxiliary.jsonProvider).%ConvertJSONToObject(..Request.HttpResponse.Data,,.obj,1)
+	Set st = $$$ADDSC(st, st1)
+	
+	For i=1:1:obj.Count() {
+		Set repo = obj.GetAt(i)
+		Do Repos.Insert(repo.name)
+		/// Write repo.name,"  ",repo.url,!
+		/// see structure of repo object at:
+		/// https://developer.github.com/v3/repos/#list-organization-repositories
+	}
+	
+	If obj.Count()'=0 {
+		/// next page exists
+		Set Page = Page + 1
+		Set st1 = ..GetTeamReposNames(TeamId, Type, .Repos, Page)
+		Set st = $$$ADDSC(st, st1)
+	}
+	Return st
+]]></Implementation>
+</Method>
+
 <Method name="AddRepoToTeam">
 <Description><![CDATA[
 Add repository to team.<br>
