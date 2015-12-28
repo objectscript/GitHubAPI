@@ -24,5 +24,27 @@ Protect default branches in organization.<br>
 	}
 ]]></Implementation>
 </Method>
+
+<Method name="AddTeamToAllOrgRepos">
+<Description><![CDATA[
+Add team to all organization repositories<br>
+<var>Org</var> - name of Organization<br>
+<var>TeamId</var> - Id of a team<br>
+<var>Username</var> - GitHub user, whois organisation owner<br>
+<var>Password</var> - GitHub password, corresponding to Username.<br>]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Org:%String,TeamId:%String,Username:%String,Password:%String</FormalSpec>
+<Implementation><![CDATA[
+	Set api = ##class(GitHub.API).%New(Username,Password)
+	#dim repos As List of %ZEN.proxyObject
+	Set st = api.GetOrgReposNames(Org, "public", .repos)
+	Write $System.Status.GetErrorText(st)
+	For i=1:1:repos.Count() {
+		Set repo = repos.GetAt(i)
+		Set st = api.AddRepoToTeam(Org, TeamId, repo, "push")
+		Write repo, " ", $System.Status.GetErrorText(st), !
+	}
+]]></Implementation>
+</Method>
 </Class>
 </Export>
