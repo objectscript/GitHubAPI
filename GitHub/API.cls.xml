@@ -3,5 +3,90 @@
 <Class name="GitHub.API">
 <Super>%RegisteredObject</Super>
 <TimeCreated>63914,59463.518731</TimeCreated>
+
+<Parameter name="SSLConfig">
+<Default>GitHub</Default>
+</Parameter>
+
+<Property name="Request">
+<Type>%Net.HttpRequest</Type>
+</Property>
+
+<Parameter name="Server">
+<Default>api.github.com</Default>
+</Parameter>
+
+<Method name="%OnNew">
+<FormalSpec>Username:%String="",Password:%String=""</FormalSpec>
+<Private>1</Private>
+<ReturnType>%Status</ReturnType>
+<ServerOnly>1</ServerOnly>
+<Implementation><![CDATA[	Quit ..CreateRequest(Username,Password)
+]]></Implementation>
+</Method>
+
+<Method name="CreateRequest">
+<FormalSpec>Username:%String,Password:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	New $Namespace
+ 	Set SSLConfig = ..#SSLConfig
+ 	
+ 	Zn "%SYS"
+ 	Do:'##class(Security.SSLConfigs).Exists(SSLConfig) ##class(Security.SSLConfigs).Create(SSLConfig)
+
+ 	Set ..Request = ##class(%Net.HttpRequest).%New()
+ 	Set ..Request.Https = 1
+	Set ..Request.SSLConfiguration = SSLConfig
+	Set ..Request.Server=	..#Server					
+	Do ..Request.SetHeader("Accept","application/vnd.github.v3+json") 		// we want 3rd version of api	
+	
+	If ($d(Username) && $d(Password) && (Username'="") && (Password'="")) {	// supply Username and Passwor, if both are provided. GitHub accept Basic Auth
+		Set ..Request.Username = Username									// https://developer.github.com/v3/auth/
+	 	Set ..Request.Password = Password
+	} 	
+
+	Return $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetOrgReposNames">
+<Description><![CDATA[
+Get list of names of all repositories in a organisation.<br>
+<var>Organisation</var> - name of organisation<br>
+<var>Type</var> - select one type of repos to return (all - for eveything)<br>
+<var>Repos</var> - list of repositories' names<br>
+<var>Page</var> - internal, do not set]]></Description>
+<FormalSpec><![CDATA[Organisation:%String,Type:%String(VALUELIST=",all,public,private,forks,sources,member")="all",&Repos:%ListOfDataTypes,Page:%Integer=1]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	Set:(('$Data(Repos)) || ('$IsObject(Repos))) Repos = ##class(%ListOfDataTypes).%New()
+	#dim obj As List of %ZEN.proxyObject
+
+	Set ..Request.Location = "orgs/" _ Organisation _ "/repos" 
+	Do ..Request.SetParam("page",Page) 
+	Do ..Request.SetParam("type",Type) 
+	Set st = ..Request.Get()
+
+	Set st1 = ##class(%ZEN.Auxiliary.jsonProvider).%ConvertJSONToObject(..Request.HttpResponse.Data,,.obj,1)
+	Set st = $$$ADDSC(st, st1)
+	
+	For i=1:1:obj.Count() {
+		Set repo = obj.GetAt(i)
+		Do Repos.Insert(repo.name)
+		/// Write repo.name,"  ",repo.url,!
+		/// see structure of repo object at:
+		/// https://developer.github.com/v3/repos/#list-organization-repositories
+	}
+	
+	If obj.Count()'=0 {
+		/// next page exists
+		Set Page = Page + 1
+		Set st1 = ..GetOrgReposNames(Organisation, Type, .Repos, Page)
+		Set st = $$$ADDSC(st, st1)
+	}
+	Return st
+]]></Implementation>
+</Method>
 </Class>
 </Export>
