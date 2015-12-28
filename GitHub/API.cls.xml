@@ -180,7 +180,7 @@ Protect branch<br>
 	Do ..Request.RemoveHeader("Accept")
 	Do ..Request.SetHeader("Accept"," application/vnd.github.loki-preview+json") // custom header as this functionality is currently in beta
 	Do ..Request.EntityBody.Write("{""protection"": {""enabled"": true}") // to supply true value in pre 16.1 versions
-	Set st = ..Request.Send("PATCH","",2)
+	Set st = ..Request.Send("PATCH","")
 	Do ..Request.RemoveHeader("Accept")
 	Do ..Request.SetHeader("Accept",..#Accept) // back to main header
 	Return st
