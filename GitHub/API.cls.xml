@@ -5,16 +5,22 @@
 <TimeCreated>63914,59463.518731</TimeCreated>
 
 <Parameter name="SSLConfig">
+<Description>
+Name of a valid Cache SSL config. 
+Created on object initialization automatically. </Description>
 <Default>GitHub</Default>
+</Parameter>
+
+<Parameter name="Server">
+<Description>
+GitHub API server address</Description>
+<Default>api.github.com</Default>
 </Parameter>
 
 <Property name="Request">
 <Type>%Net.HttpRequest</Type>
+<Internal>1</Internal>
 </Property>
-
-<Parameter name="Server">
-<Default>api.github.com</Default>
-</Parameter>
 
 <Method name="%OnNew">
 <FormalSpec>Username:%String="",Password:%String=""</FormalSpec>
@@ -26,6 +32,13 @@
 </Method>
 
 <Method name="CreateRequest">
+<Description><![CDATA[
+This methd is called automatically on object creation.<br>
+<var>Username</var> - GitHub user, who has access to repository. Optional for public repositories.<br>
+<var>Password</var> - GitHub password, corresponding to Username. Optional for public repositories.<br>
+Note, that with Username, you can make up to 5,000 requests per hour. 
+For unauthenticated requests, the rate limit allows to make up to 60 requests per hour. 
+Unauthenticated requests are associated with an IP address.<br>]]></Description>
 <FormalSpec>Username:%String,Password:%String</FormalSpec>
 <ReturnType>%Status</ReturnType>
 <Implementation><![CDATA[
@@ -52,18 +65,18 @@
 
 <Method name="GetOrgReposNames">
 <Description><![CDATA[
-Get list of names of all repositories in a organisation.<br>
-<var>Organisation</var> - name of organisation<br>
+Get list of names of all repositories in a organization.<br>
+<var>Org</var> - name of Organization<br>
 <var>Type</var> - select one type of repos to return (all - for eveything)<br>
 <var>Repos</var> - list of repositories' names<br>
 <var>Page</var> - internal, do not set]]></Description>
-<FormalSpec><![CDATA[Organisation:%String,Type:%String(VALUELIST=",all,public,private,forks,sources,member")="all",&Repos:%ListOfDataTypes,Page:%Integer=1]]></FormalSpec>
+<FormalSpec><![CDATA[Org:%String,Type:%String(VALUELIST=",all,public,private,forks,sources,member")="all",&Repos:%ListOfDataTypes,Page:%Integer=1]]></FormalSpec>
 <ReturnType>%Status</ReturnType>
 <Implementation><![CDATA[
 	Set:(('$Data(Repos)) || ('$IsObject(Repos))) Repos = ##class(%ListOfDataTypes).%New()
 	#dim obj As List of %ZEN.proxyObject
 
-	Set ..Request.Location = "orgs/" _ Organisation _ "/repos" 
+	Set ..Request.Location = "orgs/" _ Org _ "/repos" 
 	Do ..Request.SetParam("page",Page) 
 	Do ..Request.SetParam("type",Type) 
 	Set st = ..Request.Get()
@@ -82,9 +95,28 @@ Get list of names of all repositories in a organisation.<br>
 	If obj.Count()'=0 {
 		/// next page exists
 		Set Page = Page + 1
-		Set st1 = ..GetOrgReposNames(Organisation, Type, .Repos, Page)
+		Set st1 = ..GetOrgReposNames(Org, Type, .Repos, Page)
 		Set st = $$$ADDSC(st, st1)
 	}
+	Return st
+]]></Implementation>
+</Method>
+
+<Method name="AddRepoToTeam">
+<Description><![CDATA[
+Add repository to team.<br>
+<var>Org</var> - name of Organization<br>
+<var>TeamId</var> - Id (not Name) of a team<br>
+<var>Repo</var> - repository name (eg. Cache-MDX2JSON)<br>
+<var>Permission</var> - access level. Currently <b>defaults to team default level</b><br>]]></Description>
+<FormalSpec>Org:%String,TeamId:%Integer,Repo:%String,Permission:%String(VALUELIST=",pull,push,admin")="pull"</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	Set ..Request.Location = "teams/" _ Team _ "/repos/" _ Org _ "/" _ Repo 
+	Do ..Request.SetHeader("Accept","application/vnd.github.ironman-preview+json") 
+	//Do ..Request.SetHeader("Content-Length",0) 
+	Do ..Request.SetParam("permission",Permission) 		
+	Set st = ..Request.Put()
 	Return st
 ]]></Implementation>
 </Method>
