@@ -36,7 +36,7 @@ Some workflows to automate work with GitHub are availible in `GitHub.Workflows` 
 }
 ```
 
-2. Set repos.json location in param name, class `GitHub.API`. `Parameter Directory = "C:/temp/mirror/"`
+2. Set repos.json location in param, class `GitHub.API`. `Parameter Directory = "C:/temp/mirror/"`
 3. `Set api = ##class(GitHub.API).%New("user","pass")`
 4. `Do api.Mirror()`
 
