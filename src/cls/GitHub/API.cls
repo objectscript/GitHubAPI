@@ -201,40 +201,75 @@ Method GetLastCommit(Owner As %String, Repository As %String, Branch As %String 
 	Return st
 }
 
-Method Mirror(Directory As %String = {..#Directory}) As %Status
+Method MirrorAll(Directory As %String = {..#Directory}) As %Status
 {
 
 	#Dim conf As %DynamicObject 
 	#Dim repos As %DynamicArray
-	Set github = "https://github.com/"
+	#Dim mirrors As %DynamicArray
+	#Dim st As %Status
 	
-	Set stream=##class(%Stream.FileCharacter).%New()
-	Set sc=stream.LinkToFile(Directory_"repos.json")
-	Set conf={}.%FromJSON(stream.Read($$$MaxCacheInt))
+	Set stream = ##class(%Stream.FileCharacter).%New()
+	Set st = stream.LinkToFile(Directory_"repos.json")
+	Set conf = {}.%FromJSON(stream.Read($$$MaxCacheInt))
 	
-	Set ownerfrom = conf.from
-	Set ownerto = conf.to
-	Set org = conf.org
-	Set repos = conf.repos
+	set mirrors = conf.mirrors
 	
-	for i=0:1:repos.%Size()-1
+	for i=0:1:mirrors.%Size()-1
 	{
-		Set repo = repos.%Get(i)_".git"
+		set mirror = mirrors.%Get(i)
+		Set ownerfrom = mirror.from
+		Set ownerto = mirror.to
+		Set org = mirror.org
+		Set repos = mirror.repos
 		
-		if (##class(%File).Exists(Directory_repo)=1)
+		for j=0:1:repos.%Size()-1
 		{
-			Do ..FetchAndPush(Directory_repo)
-			Continue
+			Set repo = repos.%Get(j)_".git"
+
+			if (##class(%File).Exists(Directory_repo)=1)
+			{
+				Do ..FetchAndPush(Directory_repo)
+				Continue
+			}
+			
+			Set st1 = ..MirrorOne(repo, ownerfrom, ownerto, org)
+			Set st = $$$ADDSC(st, st1)
+			
 		}
-		
-		Do ..CreateRepo(repo, $select(org=0:"",1:ownerto))
-		Do ..Clone(github_ownerfrom_"/"_repo, Directory)
-		Do ..Mirroring(Directory_repo, github_ownerto_"/"_repo)
-		Do ..FetchAndPush(Directory_repo)
 	}
+	Return st
 }
 
-Method CreateRepo(Name As %String, Org As %String, Private As %String = "false") As %Status
+Method MirrorOne(Repo As %String, OwnerFrom As %String, OwnerTo As %String, Org As %String, Directory As %String = {..#Directory}) As %Status
+{
+	Set st = $$$OK
+	
+	Set github = "https://github.com/"
+	Set sourceRepo = github_OwnerFrom_"/"_Repo
+	Set mirrorRepo = github_OwnerTo_"/"_Repo
+	
+	set description = "This is a read-only mirror of "_sourceRepo_". Put you PR there."
+
+	w !,"Create repo for mirroring: "_mirrorRepo
+	Set st1 = ..CreateRepo(Repo, description, $select(Org=0:"",1:OwnerTo))
+	
+	w "    "_st1,!,!,"Clone bare repo: "_sourceRepo
+	Set st2 = ..Clone(sourceRepo, Directory)
+	Set st = $$$ADDSC(st1, st2)
+	
+	w "    "_st,!,!,"Mirroring: "_sourceRepo_" -> "_mirrorRepo
+	Set st3 = ..Mirroring(Directory_Repo, mirrorRepo)
+	Set st = $$$ADDSC(st, st3)
+	
+	w "    "_st,!,!,"Fetch and push... "
+	Set st4 = ..FetchAndPush(Directory_Repo)
+	Set st = $$$ADDSC(st, st4)
+
+	Return st
+}
+
+Method CreateRepo(Name As %String, Description As %String = "empty", Org As %String, Private As %String = "false") As %Status
 {
 	if $d(Org) && (Org '= "") {
 		Set ..Request.Location = "orgs/" _ Org _ "/repos"
@@ -242,9 +277,13 @@ Method CreateRepo(Name As %String, Org As %String, Private As %String = "false")
 		Set ..Request.Location = "user/repos"
 	}
 	
-	Do ..Request.EntityBody.Write("{""name"":"""_Name_""" ,""private"":"_Private_"}")
+	set json = "{""name"":"""_Name_""" ,""description"":"""_Description_""","_
+			   """private"":"_Private_", ""has_issues"":false}"
+
+	Do ..Request.EntityBody.Write(json)
 	
 	Set st = ..Request.Post()
+	
 	Return st
 }
 
@@ -253,9 +292,9 @@ ClassMethod Clone(Repo As %String, Directory As %String, Parameter As %String = 
 	Do $system.Process.CurrentDirectory(Directory)
 	Set cmd = "git clone " _ Parameter _" "_ Repo 
 	
-	Do ##class(GitHub.Utils).execute(cmd,1)
+	Set st = ##class(GitHub.Utils).execute(cmd)
 
-	Return $$$OK
+	Return st
 }
 
 ClassMethod Mirroring(Directory As %String, RepoForMirroring) As %Status
@@ -264,24 +303,22 @@ ClassMethod Mirroring(Directory As %String, RepoForMirroring) As %Status
 	
 	Set cmd = "git remote set-url --push origin " _ RepoForMirroring
 	
-	Do ##class(GitHub.Utils).execute(cmd,1)
+	Set st = ##class(GitHub.Utils).execute(cmd)
 	
-	Return $$$OK
+	Return st
 }
 
 ClassMethod FetchAndPush(Directory As %String) As %Status
 {
 	Do $system.Process.CurrentDirectory(Directory)
-	
-	Set st = $$$OK
-	
+	w !!,"directory: "_Directory,!
 	Set cmd = "git fetch -p origin"
-	Set st = ##class(GitHub.Utils).execute(cmd,1)
+	Set st1 = ##class(GitHub.Utils).execute(cmd,1)
 	
 	Set cmd = "git push --mirror"
-	Set st = ##class(GitHub.Utils).execute(cmd,1)
+	Set st2 = ##class(GitHub.Utils).execute(cmd,1)
 	
-	Return st
+	Return $$$ADDSC(st1, st2)
 }
 
 ClassMethod UpdateMirrors(Directory As %String = {..#Directory}) As %Status
