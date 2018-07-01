@@ -25,14 +25,22 @@ Some workflows to automate work with GitHub are availible in `GitHub.Workflows` 
 
 ```
 {
-    "from": "intersystems-ru",        // owners: user or organization
-    "to": "intersystems-community",
-    "org": 1,                         // 1: if you want to mirror in organization owner. 0: if user owner 
-    "repos": [                        // just repos name f.e. 'GitHubAPI'
-        "repo1",  
-        "repo2",
-        "..."
-    ]
+    "mirrors": [{
+        "from": "intersystems-ru",  // owners: user or organization
+        "to": "intersystems-community",
+        "org": 1,                   // 1: if you want to mirror in organization owner. 0: if user owner.
+        "repos": [
+            "GitHubAPI"             // just repos name f.e. 'GitHubAPI'
+        ]
+    }, {
+        "from": "user1",
+        "to": "user2",
+        "org": 0,
+        "repos": [
+            "repo1",
+            "repo2"
+        ]
+    }]
 }
 ```
 
