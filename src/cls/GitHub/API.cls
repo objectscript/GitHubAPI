@@ -241,9 +241,11 @@ Method MirrorAll(Directory As %String = {..#Directory}) As %Status
 	Return st
 }
 
-Method MirrorOne(Repo As %String, OwnerFrom As %String, OwnerTo As %String, Org As %String, Directory As %String = {..#Directory}) As %Status
+Method MirrorOne(Repo As %String, OwnerFrom As %String, OwnerTo As %String, Org As %Boolean, Directory As %String = {..#Directory}) As %Status
 {
 	Set st = $$$OK
+	
+	Set:$f(Repo,".git")=0 Repo = Repo_".git"
 	
 	Set github = "https://github.com/"
 	Set sourceRepo = github_OwnerFrom_"/"_Repo
@@ -255,7 +257,7 @@ Method MirrorOne(Repo As %String, OwnerFrom As %String, OwnerTo As %String, Org 
 	Set st1 = ..CreateRepo(Repo, description, $select(Org=0:"",1:OwnerTo))
 	
 	w "    "_st1,!,!,"Clone bare repo: "_sourceRepo
-	Set st2 = ..Clone(sourceRepo, Directory)
+	Set st2 = $system.Status.DisplayError(..Clone(sourceRepo, Directory))
 	Set st = $$$ADDSC(st1, st2)
 	
 	w "    "_st,!,!,"Mirroring: "_sourceRepo_" -> "_mirrorRepo
@@ -265,6 +267,9 @@ Method MirrorOne(Repo As %String, OwnerFrom As %String, OwnerTo As %String, Org 
 	w "    "_st,!,!,"Fetch and push... "
 	Set st4 = ..FetchAndPush(Directory_Repo)
 	Set st = $$$ADDSC(st, st4)
+	
+	w "    "_st,!,!,"Mirror Releases... "
+	set st1 = ..MirrorReleases(OwnerFrom, OwnerTo, $p(Repo,".git",1))
 
 	Return st
 }
@@ -287,10 +292,10 @@ Method CreateRepo(Name As %String, Description As %String = "empty", Org As %Str
 	Return st
 }
 
-ClassMethod Clone(Repo As %String, Directory As %String, Parameter As %String = "--mirror") As %Status
+ClassMethod Clone(RepoURL As %String, Directory As %String = {..#Directory}, Parameter As %String = "--mirror") As %Status
 {
 	Do $system.Process.CurrentDirectory(Directory)
-	Set cmd = "git clone " _ Parameter _" "_ Repo 
+	Set cmd = "git clone " _ Parameter _" "_ RepoURL
 	
 	Set st = ##class(GitHub.Utils).execute(cmd)
 
@@ -321,21 +326,183 @@ ClassMethod FetchAndPush(Directory As %String) As %Status
 	Return $$$ADDSC(st1, st2)
 }
 
+// do ##class(GitHub.API).UpdateMirrors()
+
 ClassMethod UpdateMirrors(Directory As %String = {..#Directory}) As %Status
 {
 	Set stream=##class(%Stream.FileCharacter).%New()
-	Set sc=stream.LinkToFile(Directory_"repos.json")
+	Set st=stream.LinkToFile(Directory_"repos.json")
 	Set conf={}.%FromJSON(stream.Read($$$MaxCacheInt))
 	
-	Set repos = conf.repos
 	
-	for i=0:1:repos.%Size()-1
+	Set mirrors = conf.mirrors
+	
+	For i=0:1:mirrors.%Size()-1
 	{
-		Set repo = repos.%Get(i)_".git"
-		Set sc = ..FetchAndPush(Directory_repo)
+		set mirror = mirrors.%Get(i)
+		Set repos = mirror.repos
+		
+		For i=0:1:repos.%Size()-1
+		{
+			Set repo = repos.%Get(i)_".git"
+			Set st1 = ..FetchAndPush(Directory_repo)
+			Set st = $$$ADDSC(st, st1)
+		}
+	}
+	Return st
+}
+
+Method MirrorReleases(OwnerFrom As %String, OwnerTo As %String, Repo As %String) As %Status
+{
+	#Dim releases As %DynamicArray
+	#Dim release As %DynamicObject
+	
+	Set st = ..GetReleasesList(OwnerFrom, Repo, .releases)
+
+	For i=1:1:releases.Count() 
+	{
+		Set release = releases.GetAt(i)
+		
+		Set st1 = ..CreateRelease(OwnerTo, Repo, release, .releaseid)
+		Set st = $$$ADDSC(st, st1)
+		
+		Set st1 = ..GetListAssetsForARelease(OwnerFrom, Repo, release.id, .assets)
+		Set st = $$$ADDSC(st, st1)
+
+		For j=1:1:assets.Count() 
+		{
+			Set asset = assets.GetAt(j)
+			
+			Set st1 = ..DownloadAssetsContent(asset."browser_download_url", .stream)
+			Set st = $$$ADDSC(st, st1)
+			
+			Set st1 = ..UploadAsset(OwnerTo, Repo, releaseid, asset, stream)
+			Set st = $$$ADDSC(st, st1)
+		}
 	}
 	
-	Return sc
+	Return st
+}
+
+Method GetReleasesList(Owner As %String, Repo As %String, Output Releases As %DynamicArray) As %Status
+{
+	Set ..Request.Location = "/repos/"_Owner_"/"_Repo_"/releases" 
+	
+	set st = ..Request.Get()
+
+	Set st1 = ##class(%ZEN.Auxiliary.jsonProvider).%ConvertJSONToObject(..Request.HttpResponse.Data,, .Releases, 1)
+	Set st = $$$ADDSC(st, st1)
+
+	Return st
+}
+
+Method GetLatestRelease(Owner As %String, Repo As %String, ByRef Release As %DynamicObject) As %Status
+{
+	Set ..Request.Location = "/repos/"_Owner_"/"_Repo_"/releases/latest" 
+	
+	set st = ..Request.Get()
+
+	Set st1 = ##class(%ZEN.Auxiliary.jsonProvider).%ConvertJSONToObject(..Request.HttpResponse.Data,, .Release, 1)
+	Set st = $$$ADDSC(st, st1)
+
+	Return st
+}
+
+Method CreateRelease(Owner As %String, Repo As %String, Input As %DynamicObject, Output ReleaseID As %Integer) As %Status
+{
+	
+	Set ..Request.Location = "/repos/"_Owner_"/"_Repo_"/releases"
+	
+	set json = {
+				  "tag_name": (Input."tag_name"),
+				  "target_commitish": (Input."target_commitish"),
+				  "name": (Input.name),
+				  "body": (Input.body),
+				  "draft": false,
+				  "prerelease": false
+				}.%ToJSON()
+
+	do ..Request.EntityBody.Write(json)
+	
+	Set st = ..Request.Post()
+	
+	Set st1 = ##class(%ZEN.Auxiliary.jsonProvider).%ConvertJSONToObject(..Request.HttpResponse.Data,, .release, 1)
+	Set st = $$$ADDSC(st, st1)
+
+	Set ReleaseID = release.id
+	
+	Return st
+}
+
+Method DeleteRelease(Owner As %String, Repo As %String, ReleaseID) As %Status
+{
+	Set ..Request.Location = "/repos/"_Owner_"/"_Repo_"/releases/"_ReleaseID 
+	
+	set st = ..Request.Delete(..Request.Location)
+
+	Set st1 = ##class(%ZEN.Auxiliary.jsonProvider).%ConvertJSONToObject(..Request.HttpResponse.Data,, .Release, 1)
+	Set st = $$$ADDSC(st, st1)
+
+	Return st
+}
+
+Method GetListAssetsForARelease(Owner As %String, Repo As %String, ReleaseId As %Integer, Output Assets As %DynamicArray) As %Status
+{
+	Set ..Request.Location = "/repos/"_Owner_"/"_Repo_"/releases/"_ReleaseId_"/assets"
+	
+	set st = ..Request.Get()
+
+	Set st1 = ##class(%ZEN.Auxiliary.jsonProvider).%ConvertJSONToObject(..Request.HttpResponse.Data,, .Assets, 1)
+	Set st = $$$ADDSC(st, st1)
+
+	Return st
+}
+
+Method DownloadAssetsContent(BrowserDownloadURL As %String, Output Assets) As %Status
+{
+	Set ..Request.Server = $p(BrowserDownloadURL, "/", 3)
+	Set ..Request.Location = $p(BrowserDownloadURL, "/", 4,*)
+	set ..Request.FollowRedirect = $$$NO
+	
+	Set st = ..Request.Get()
+	
+	Set location = ..Request.HttpResponse.GetHeader("LOCATION")
+
+	Set requestAsset = ##class(%Net.HttpRequest).%New()
+	Set requestAsset.Https = 1
+	Set requestAsset.SSLConfiguration = ..#SSLConfig
+
+	Set st = requestAsset.Get(location)
+	
+	Set Assets = requestAsset.HttpResponse.Data
+	
+	Set ..Request.Server= ..#Server
+	
+	Return st
+}
+
+Method UploadAsset(Owner As %String, Repo As %String, ReleaseId As %Integer, Asset As %ZEN.proxyObject, Stream As %AbstractStream) As %Status
+{
+	Set ..Request.Server = "uploads.github.com"
+	
+	Do ..Request.SetParam("Content-Type", Asset."Content-Type")
+	Do ..Request.SetParam("name", Asset.name) 
+	Do ..Request.SetParam("label", Asset.label) 
+	
+	Set ..Request.Location = "/repos/"_Owner_"/"_Repo_"/releases/"_ReleaseId_"/assets"
+
+	do ..Request.EntityBody.CopyFrom(Stream)
+
+	Set st = ..Request.Post()
+	
+	Set ..Request.Server= ..#Server
+	
+	return st
+}
+
+Method test(test)
+{
+	zw
 }
 
 }
