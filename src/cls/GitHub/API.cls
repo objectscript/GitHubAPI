@@ -13,9 +13,13 @@ Parameter Accept = "application/vnd.github.v3+json";
 
 Parameter Directory = "C:/temp/mirror/";
 
+Parameter Username;
+
+Parameter Password;
+
 Property Request As %Net.HttpRequest [ Internal ];
 
-Method %OnNew(Username As %String = "", Password As %String = "") As %Status [ Private, ServerOnly = 1 ]
+Method %OnNew(Username As %String = {..#Username}, Password As %String = {..#Password}) As %Status [ Private, ServerOnly = 1 ]
 {
 	Quit ..CreateRequest(Username,Password)
 }
@@ -203,7 +207,6 @@ Method GetLastCommit(Owner As %String, Repository As %String, Branch As %String 
 
 Method MirrorAll(Directory As %String = {..#Directory}) As %Status
 {
-
 	#Dim conf As %DynamicObject 
 	#Dim repos As %DynamicArray
 	#Dim mirrors As %DynamicArray
@@ -229,7 +232,6 @@ Method MirrorAll(Directory As %String = {..#Directory}) As %Status
 
 			if (##class(%File).Exists(Directory_repo)=1)
 			{
-				Do ..FetchAndPush(Directory_repo)
 				Continue
 			}
 			
@@ -257,7 +259,7 @@ Method MirrorOne(Repo As %String, OwnerFrom As %String, OwnerTo As %String, Org 
 	Set st1 = ..CreateRepo(Repo, description, $select(Org=0:"",1:OwnerTo))
 	
 	w "    "_st1,!,!,"Clone bare repo: "_sourceRepo
-	Set st2 = $system.Status.DisplayError(..Clone(sourceRepo, Directory))
+	Set st2 = ..Clone(sourceRepo, Directory)
 	Set st = $$$ADDSC(st1, st2)
 	
 	w "    "_st,!,!,"Mirroring: "_sourceRepo_" -> "_mirrorRepo
@@ -326,43 +328,21 @@ ClassMethod FetchAndPush(Directory As %String) As %Status
 	Return $$$ADDSC(st1, st2)
 }
 
-// do ##class(GitHub.API).UpdateMirrors()
-
-ClassMethod UpdateMirrors(Directory As %String = {..#Directory}) As %Status
-{
-	Set stream=##class(%Stream.FileCharacter).%New()
-	Set st=stream.LinkToFile(Directory_"repos.json")
-	Set conf={}.%FromJSON(stream.Read($$$MaxCacheInt))
-	
-	
-	Set mirrors = conf.mirrors
-	
-	For i=0:1:mirrors.%Size()-1
-	{
-		set mirror = mirrors.%Get(i)
-		Set repos = mirror.repos
-		
-		For i=0:1:repos.%Size()-1
-		{
-			Set repo = repos.%Get(i)_".git"
-			Set st1 = ..FetchAndPush(Directory_repo)
-			Set st = $$$ADDSC(st, st1)
-		}
-	}
-	Return st
-}
-
 Method MirrorReleases(OwnerFrom As %String, OwnerTo As %String, Repo As %String) As %Status
 {
 	#Dim releases As %DynamicArray
 	#Dim release As %DynamicObject
 	
 	Set st = ..GetReleasesList(OwnerFrom, Repo, .releases)
+	Set st = ..GetReleasesList(OwnerTo, Repo, .releasesTo)
+	
+	set count = releases.Count()-releasesTo.Count()
 
-	For i=1:1:releases.Count() 
+	
+	For i=1:1:count
 	{
 		Set release = releases.GetAt(i)
-		
+
 		Set st1 = ..CreateRelease(OwnerTo, Repo, release, .releaseid)
 		Set st = $$$ADDSC(st, st1)
 		
@@ -497,6 +477,56 @@ Method UploadAsset(Owner As %String, Repo As %String, ReleaseId As %Integer, Ass
 	
 	Set ..Request.Server= ..#Server
 	
+	return st
+}
+
+// do ##class(GitHub.API).UpdateMirrors()
+
+ClassMethod UpdateMirrors(Username As %String = {..#Username}, Password As %String = {..#Password}, Directory As %String = {..#Directory}) As %Status
+{
+	Set apiUM = ##class(GitHub.API).%New(Username, Password)
+	
+	Set stream = ##class(%Stream.FileCharacter).%New()
+	Set st = stream.LinkToFile(Directory_"repos.json")
+	Set conf = {}.%FromJSON(stream.Read(stream.Size))
+	
+	Set mirrors = conf.mirrors
+	
+	For i=0:1:mirrors.%Size()-1
+	{
+		Set mirror = mirrors.%Get(i)
+		Set ownerfrom = mirror.from
+		Set ownerto = mirror.to
+		Set repos = mirror.repos
+		
+		For j=0:1:repos.%Size()-1
+		{
+			Set repo = repos.%Get(j)_".git"
+
+			Set st1 = ..FetchAndPush(Directory_repo)
+			Set st = $$$ADDSC(st, st1)
+			
+			Set st1 = apiUM.MirrorReleases(ownerfrom, ownerto, $p(repo,".",1))
+			Set st = $$$ADDSC(st, st1)
+		}
+	}
+	Kill apiUM
+	Return st
+}
+
+ClassMethod UpdateMirrorReposInDirectory(Directory As %String = {..#Directory}) As %Status
+{
+	Set rs = ##class(%File).FileSetFunc(Directory,,, 1)
+	
+	While rs.%Next() 
+	{
+		if rs.Type = "D" 
+		{
+			Set repo = rs.Name
+			Set st1 = ..FetchAndPush(repo)
+			Set st = $$$ADDSC(st, st1)
+		}
+	}
 	return st
 }
 
