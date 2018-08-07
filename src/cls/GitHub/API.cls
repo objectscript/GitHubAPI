@@ -225,7 +225,7 @@ Method MirrorAll(Directory As %String = {..#Directory}) As %Status
 		Set ownerto = mirror.to
 		Set org = mirror.org
 		Set repos = mirror.repos
-		
+
 		for j=0:1:repos.%Size()-1
 		{
 			Set repo = repos.%Get(j)_".git"
@@ -337,7 +337,6 @@ Method MirrorReleases(OwnerFrom As %String, OwnerTo As %String, Repo As %String)
 	Set st = ..GetReleasesList(OwnerTo, Repo, .releasesTo)
 	
 	set count = releases.Count()-releasesTo.Count()
-
 	
 	For i=1:1:count
 	{
@@ -528,6 +527,22 @@ ClassMethod UpdateMirrorReposInDirectory(Directory As %String = {..#Directory}) 
 		}
 	}
 	return st
+}
+
+/// ArchiveFormat - Can be either tarball or zipball. Default: tarball
+/// Ref - A valid Git reference. Default: the repository’s default branch (usually master)
+Method GetArchive(Owner As %String, Repo As %String, ArchiveFormat As %String = "tarball", Ref As %String = "master", Filename As %String) As %Status
+{
+	Set ..Request.Location = "/repos/"_Owner_"/"_Repo_"/"_ArchiveFormat_"/"_Ref
+	
+	Set st = ..Request.Get()
+
+	Set file = ##class(%Stream.FileBinary).%New()
+	Set file.Filename = Filename
+
+	Set st = file.CopyFromAndSave(..Request.HttpResponse.Data)
+	
+	Return st
 }
 
 Method test(test)
