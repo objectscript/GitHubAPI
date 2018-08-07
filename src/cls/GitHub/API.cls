@@ -531,16 +531,18 @@ ClassMethod UpdateMirrorReposInDirectory(Directory As %String = {..#Directory}) 
 
 /// ArchiveFormat - Can be either tarball or zipball. Default: tarball
 /// Ref - A valid Git reference. Default: the repository’s default branch (usually master)
-Method GetArchive(Owner As %String, Repo As %String, ArchiveFormat As %String = "tarball", Ref As %String = "master", Filename As %String) As %Status
+ClassMethod GetArchive(Owner As %String, Repo As %String, ArchiveFormat As %String = "tarball", Ref As %String = "master", Filename As %String, Username As %String = {..#Username}, Password As %String = {..#Password}) As %Status
 {
-	Set ..Request.Location = "/repos/"_Owner_"/"_Repo_"/"_ArchiveFormat_"/"_Ref
+	Set apiUM = ..%New(Username, Password)
 	
-	Set st = ..Request.Get()
+	Set apiUM.Request.Location = "/repos/"_Owner_"/"_Repo_"/"_ArchiveFormat_"/"_Ref
+	
+	Set st = apiUM.Request.Get()
 
 	Set file = ##class(%Stream.FileBinary).%New()
 	Set file.Filename = Filename
 
-	Set st = file.CopyFromAndSave(..Request.HttpResponse.Data)
+	Set st = file.CopyFromAndSave(apiUM.Request.HttpResponse.Data)
 	
 	Return st
 }
