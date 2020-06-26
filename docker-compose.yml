@@ -8,7 +8,5 @@ services:
     ports: 
       - 51773
       - 52773
-      - 53773
     volumes:
-      - ~/iris.key:/usr/irissys/mgr/iris.key
       - ./:/irisdev/app
