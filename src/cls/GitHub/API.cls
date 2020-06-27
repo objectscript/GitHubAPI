@@ -460,9 +460,10 @@ Method DownloadAssetsContent(BrowserDownloadURL As %String, Output Assets) As %S
 	Return st
 }
 
-Method UploadAsset(Owner As %String, Repo As %String, ReleaseId As %Integer, Asset As %ZEN.proxyObject, Stream As %AbstractStream) As %Status
+Method UploadAsset(Owner As %String, Repo As %String, ReleaseId As %Integer, Asset As %ZEN.proxyObject, Stream As %AbstractStream, PostGzip As %Boolean = 0) As %Status
 {
 	Set ..Request.Server = "uploads.github.com"
+	Set ..Request.PostGzip = PostGzip
 	
 	Do ..Request.SetParam("Content-Type", Asset."Content-Type")
 	Do ..Request.SetParam("name", Asset.name) 
@@ -475,6 +476,7 @@ Method UploadAsset(Owner As %String, Repo As %String, ReleaseId As %Integer, Ass
 	Set st = ..Request.Post()
 	
 	Set ..Request.Server= ..#Server
+	Set ..Request.PostGzip = 0
 	
 	return st
 }
