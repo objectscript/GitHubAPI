@@ -396,10 +396,12 @@ Method CreateRelease(Owner As %String, Repo As %String, Input As %DynamicObject,
 				  "tag_name": (Input."tag_name"),
 				  "target_commitish": (Input."target_commitish"),
 				  "name": (Input.name),
-				  "body": (Input.body),
-				  "draft": false,
-				  "prerelease": false
-				}.%ToJSON()
+				  "body": (Input.body)
+				}
+	do json.%Set("draft", Input.%Get("draft", 0), "boolean")
+	do json.%Set("prerelease", Input.%Get("prerelease", 0), "boolean")
+
+	set json = json.%ToJSON()
 
 	do ..Request.EntityBody.Write(json)
 	
@@ -409,6 +411,29 @@ Method CreateRelease(Owner As %String, Repo As %String, Input As %DynamicObject,
 	Set st = $$$ADDSC(st, st1)
 
 	Set ReleaseID = release.id
+	
+	Return st
+}
+
+Method UpdateRelease(Owner As %String, Repo As %String, Input As %DynamicObject, ReleaseID As %Integer) As %Status
+{
+	
+	Set ..Request.Location = "/repos/"_Owner_"/"_Repo_"/releases/"_ReleaseID
+	
+	set json = {
+				  "tag_name": (Input."tag_name"),
+				  "target_commitish": (Input."target_commitish"),
+				  "name": (Input.name),
+				  "body": (Input.body)
+				}
+	do json.%Set("draft", Input.%Get("draft", 0), "boolean")
+	do json.%Set("prerelease", Input.%Get("prerelease", 0), "boolean")
+
+	set json = json.%ToJSON()
+
+	do ..Request.EntityBody.Write(json)
+	
+	Set st = ..Request.Patch()
 	
 	Return st
 }
