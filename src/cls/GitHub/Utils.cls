@@ -4,12 +4,11 @@ Class GitHub.Utils
 /// Do ##class(GitHub.Utils).Test(10)
 ClassMethod Test(Count As %Integer(MINVAL=1) = 10)
 {
-	Set username = $Get(^GHAPI("user"))
-	Set password = $Get(^GHAPI("pass"))
+	Set token = $Get(^GHAPI("token"))
 	Set owner = "intersystems-ru"
 	Set repository = "highlight.js"
 		
-	Set obj = ##class(GitHub.API).%New(username,password)
+	Set obj = ##class(GitHub.API).%New(token)
 	Set start = $Now()
 	For i=1:1:Count {
 		Do obj.GetLastCommit(owner, repository,,.commit)
