@@ -3,7 +3,7 @@
   <Document name="github-api.ZPM">
     <Module>
       <Name>github-api</Name>
-      <Version>1.0.3</Version>
+      <Version>1.1.0</Version>
       <Description>Github API for InterSystems Data Platforms</Description>
       <Packaging>module</Packaging>
       <Resource Name="src.cls.GitHub.PKG"/>
