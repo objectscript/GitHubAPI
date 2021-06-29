@@ -13,24 +13,21 @@ Parameter Accept = "application/vnd.github.v3+json";
 
 Parameter Directory = "C:/temp/mirror/";
 
-Parameter Username;
-
-Parameter Password;
+Parameter Token;
 
 Property Request As %Net.HttpRequest [ Internal ];
 
-Method %OnNew(Username As %String = {..#Username}, Password As %String = {..#Password}) As %Status [ Private, ServerOnly = 1 ]
+Method %OnNew(Token As %String = {..#Token}) As %Status [ Private, ServerOnly = 1 ]
 {
-	Quit ..CreateRequest(Username,Password)
+	Quit ..CreateRequest(Token)
 }
 
 /// This methd is called automatically on object creation.<br>
-/// <var>Username</var> - GitHub user, who has access to repository. Optional for public repositories.<br>
-/// <var>Password</var> - GitHub password, corresponding to Username. Optional for public repositories.<br>
-/// Note, that with Username, you can make up to 5,000 requests per hour. 
+/// <var>Token</var> - GitHub user Auth token
+/// Note, that with Token, you can make up to 5,000 requests per hour. 
 /// For unauthenticated requests, the rate limit allows to make up to 60 requests per hour. 
 /// Unauthenticated requests are associated with an IP address.<br>
-Method CreateRequest(Username As %String, Password As %String) As %Status
+Method CreateRequest(Token As %String) As %Status
 {
 	New $Namespace
  	Set SSLConfig = ..#SSLConfig
@@ -44,9 +41,8 @@ Method CreateRequest(Username As %String, Password As %String) As %Status
 	Set ..Request.Server=	..#Server					
 	Do ..Request.SetHeader("Accept",..#Accept) 		// we want 3rd version of api	
 	
-	If ($d(Username) && $d(Password) && (Username'="") && (Password'="")) {	// supply Username and Passwor, if both are provided. GitHub accept Basic Auth
-		Set ..Request.Username = Username									// https://developer.github.com/v3/auth/
-	 	Set ..Request.Password = Password
+	If ($d(Token) && (Token'="")) {	// SSO SAML token Auth
+		Do ..Request.SetHeader("Authorization", "token "_Token)
 	} 	
 
 	Return $$$OK
@@ -508,9 +504,9 @@ Method UploadAsset(Owner As %String, Repo As %String, ReleaseId As %Integer, Ass
 
 // do ##class(GitHub.API).UpdateMirrors()
 
-ClassMethod UpdateMirrors(Username As %String = {..#Username}, Password As %String = {..#Password}, Directory As %String = {..#Directory}) As %Status
+ClassMethod UpdateMirrors(Token As %String = {..#Token}, Directory As %String = {..#Directory}) As %Status
 {
-	Set apiUM = ##class(GitHub.API).%New(Username, Password)
+	Set apiUM = ##class(GitHub.API).%New(Token)
 	
 	Set stream = ##class(%Stream.FileCharacter).%New()
 	Set st = stream.LinkToFile(Directory_"repos.json")
@@ -558,9 +554,9 @@ ClassMethod UpdateMirrorReposInDirectory(Directory As %String = {..#Directory}) 
 
 /// ArchiveFormat - Can be either tarball or zipball. Default: tarball
 /// Ref - A valid Git reference. Default: the repository’s default branch (usually master)
-ClassMethod GetArchive(Owner As %String, Repo As %String, ArchiveFormat As %String = "tarball", Ref As %String = "master", Filename As %String, Username As %String = {..#Username}, Password As %String = {..#Password}) As %Status
+ClassMethod GetArchive(Owner As %String, Repo As %String, ArchiveFormat As %String = "tarball", Ref As %String = "master", Filename As %String, Token As %String = {..#Token}) As %Status
 {
-	Set apiUM = ..%New(Username, Password)
+	Set apiUM = ..%New(Token)
 	
 	Set apiUM.Request.Location = "/repos/"_Owner_"/"_Repo_"/"_ArchiveFormat_"/"_Ref
 	

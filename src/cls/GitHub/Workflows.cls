@@ -3,11 +3,10 @@ Class GitHub.Workflows
 
 /// Protect default branches in organization.<br>
 /// <var>Org</var> - name of Organization<br>
-/// <var>Username</var> - GitHub user, whois organisation owner<br>
-/// <var>Password</var> - GitHub password, corresponding to Username.<br>
-ClassMethod ProtectDefaultBranches(Org As %String, Username As %String, Password As %String)
+/// <var>Token</var> - GitHub user token, whois organisation owner<br>
+ClassMethod ProtectDefaultBranches(Org As %String, Token As %String)
 {
-	Set api = ##class(GitHub.API).%New(Username,Password)
+	Set api = ##class(GitHub.API).%New(Token)
 	#dim repos As List of %ZEN.proxyObject
 	Set st = api.GetOrgRepos(Org, "public", .repos)
 	Write $System.Status.GetErrorText(st)
@@ -22,11 +21,10 @@ ClassMethod ProtectDefaultBranches(Org As %String, Username As %String, Password
 /// Add team to all organization repositories<br>
 /// <var>Org</var> - name of Organization<br>
 /// <var>TeamId</var> - Id of a team<br>
-/// <var>Username</var> - GitHub user, whois organisation owner<br>
-/// <var>Password</var> - GitHub password, corresponding to Username.<br>
-ClassMethod AddTeamToAllOrgRepos(Org As %String, TeamId As %String, Username As %String, Password As %String)
+/// <var>Token</var> - GitHub user token, whois organisation owner<br>
+ClassMethod AddTeamToAllOrgRepos(Org As %String, TeamId As %String, Token As %String)
 {
-	Set api = ##class(GitHub.API).%New(Username,Password)
+	Set api = ##class(GitHub.API).%New(Token)
 	#dim orgrepos,teamrepos As %ListOfDataTypes
 
 	Set st = api.GetOrgReposNames(Org, "public", .orgrepos)
