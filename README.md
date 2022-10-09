@@ -7,7 +7,7 @@ Import into any namespace and compile.
 
 ## Usage
 
-First create api object to interact with GitHub API (provide valid GitHub Token if available):
+First create api object to interact with GitHub API (use valid GitHub Token if available):
 
 `Set api = ##class(GitHub.API).%New("<your token>")`
 
