@@ -7,9 +7,9 @@ Import into any namespace and compile.
 
 ## Usage
 
-First create api object to interact with GitHub API (provide valid GitHub user and pass):
+First create api object to interact with GitHub API (use valid GitHub Token if available):
 
-`Set api = ##class(GitHub.API).%New("user","pass")`
+`Set api = ##class(GitHub.API).%New("<your token>")`
 
 After that you can query some GitHub APIs. For example to get info about all public repos in organization:
 
